@@ -23,7 +23,7 @@ public void OnPluginStart()
 {
 	g_CVar_sv_gravity = FindConVar("sv_gravity");
 
-	HookEvent("round_prestart", OnRoundRestart);
+	HookEvent("round_start", OnRoundStart);
 }
 
 public void OnPluginEnd()
@@ -33,7 +33,7 @@ public void OnPluginEnd()
 
 // If a player is on a ladder with modified gravity and the round restarts,
 // their gravity would be restored to what it was last round since they'd be no longer on a ladder
-public void OnRoundRestart(Handle event, const char[] name, bool dontBroadcast)
+public void OnRoundStart(Handle event, const char[] name, bool dontBroadcast)
 {
 	ResetGravityAll();
 }
@@ -44,7 +44,7 @@ public void OnGameFrame()
 
 	for (int client = 1; client < MaxClients; client++)
 	{
-		if (!IsClientInGame(client) || !IsPlayerAlive(client))
+		if (!IsClientInGame(client) || !IsPlayerAlive(client) || IsFakeClient(client))
 		{
 			g_flClientGravity[client] = 1.0;
 			g_bLadder[client] = false;
@@ -94,7 +94,7 @@ public void ResetGravityAll()
 		g_flClientGravity[client] = 1.0;
 		g_bLadder[client] = false;
 
-		if (IsClientInGame(client))
+		if (IsClientInGame(client) && !IsFakeClient(client))
 			g_CVar_sv_gravity.ReplicateToClient(client, szGravity);
 	}
 }
