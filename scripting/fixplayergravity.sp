@@ -56,23 +56,29 @@ public void OnGameFrame()
 			// They're on a ladder, ignore current gravity modifier
 			if (!g_bLadder[client])
 				g_bLadder[client] = true;
+
+			continue;
 		}
-		else
+
+		// Now that they're off, restore it
+		if (g_bLadder[client])
 		{
-			if (g_bLadder[client])
-			{
-				// Now that they're off, restore it
-				g_bLadder[client] = false;
-				SetEntityGravity(client, g_flClientGravity[client]);
-			}
-
-			g_flClientGravity[client] = GetEntityGravity(client);
+			RequestFrame(RestoreGravity, client);
+			continue;
 		}
 
-		float flClientActualGravity = g_flClientGravity[client] * flSVGravity;
+		float flClientGravity = GetEntityGravity(client);
+
+		// Gamemovement treats 0.0 gravity as 1.0, and 0.0 is only set by ladders so ignore
+		if (flClientGravity == 0.0)
+			continue;
+
+		g_flClientGravity[client] = flClientGravity;
 
 		// Some maps change sv_gravity while clients already have modified gravity
 		// So we store the actual calculated gravity to catch such cases
+		float flClientActualGravity = flClientGravity * flSVGravity;
+
 		if (flClientActualGravity != g_flClientActualGravity[client])
 		{
 			char szGravity[8];
@@ -82,6 +88,12 @@ public void OnGameFrame()
 			g_flClientActualGravity[client] = flClientActualGravity;
 		}
 	}
+}
+
+public void RestoreGravity(int client)
+{
+	g_bLadder[client] = false;
+	SetEntityGravity(client, g_flClientGravity[client]);
 }
 
 public void ResetGravityAll()
