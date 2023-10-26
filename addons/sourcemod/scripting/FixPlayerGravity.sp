@@ -6,14 +6,17 @@
 public Plugin myinfo = 
 {
 	name = "Fix Player Gravity",
-	author = "xen",
+	author = "xen, .Rushaway",
 	description = "Enable prediction for gravity and fix ladders resetting it",
-	version = "1.0",
+	version = "1.1",
 	url = ""
 };
 
 ConVar g_CVar_sv_gravity;
 
+char g_sSvGravity[8];
+
+float g_flSvGravity;
 float g_flClientGravity[MAXPLAYERS + 1];
 float g_flClientActualGravity[MAXPLAYERS + 1];
 
@@ -22,8 +25,10 @@ bool g_bLadder[MAXPLAYERS + 1];
 public void OnPluginStart()
 {
 	g_CVar_sv_gravity = FindConVar("sv_gravity");
+	g_CVar_sv_gravity.AddChangeHook(ConVarChange);
 
-	HookEvent("round_start", OnRoundStart);
+	HookEvent("round_end", OnRoundEnd, EventHookMode_Post);
+	HookEvent("player_spawn", OnPlayerSpawn, EventHookMode_Post);
 }
 
 public void OnPluginEnd()
@@ -31,25 +36,34 @@ public void OnPluginEnd()
 	ResetGravityAll();
 }
 
-// If a player is on a ladder with modified gravity and the round restarts,
+public void ConVarChange(ConVar CVar, const char[] oldVal, const char[] newVal)
+{
+	g_CVar_sv_gravity.GetString(g_sSvGravity, sizeof(g_sSvGravity));
+	g_flSvGravity = g_CVar_sv_gravity.FloatValue;
+}
+
+// If a player is on a ladder with modified gravity and the round end,
 // their gravity would be restored to what it was last round since they'd be no longer on a ladder
-public void OnRoundStart(Handle event, const char[] name, bool dontBroadcast)
+public void OnRoundEnd(Handle event, const char[] name, bool dontBroadcast)
 {
 	ResetGravityAll();
 }
 
+public void OnPlayerSpawn(Handle event, const char[] name, bool dontBroadcast)
+{
+	int userid = GetEventInt(event, "userid");
+	int client = GetClientOfUserId(userid);
+	if (client < 1 || client > MaxClients) return;
+	
+	InitClient(client);
+}
+
 public void OnGameFrame()
 {
-	float flSVGravity = GetConVarFloat(g_CVar_sv_gravity);
-
 	for (int client = 1; client < MaxClients; client++)
 	{
 		if (!IsClientInGame(client) || !IsPlayerAlive(client) || IsFakeClient(client))
-		{
-			g_flClientGravity[client] = 1.0;
-			g_bLadder[client] = false;
 			continue;
-		}
 
 		if (GetEntityMoveType(client) == MOVETYPE_LADDER)
 		{
@@ -77,7 +91,7 @@ public void OnGameFrame()
 
 		// Some maps change sv_gravity while clients already have modified gravity
 		// So we store the actual calculated gravity to catch such cases
-		float flClientActualGravity = flClientGravity * flSVGravity;
+		float flClientActualGravity = flClientGravity * g_flSvGravity;
 
 		if (flClientActualGravity != g_flClientActualGravity[client])
 		{
@@ -98,15 +112,15 @@ public void RestoreGravity(int client)
 
 public void ResetGravityAll()
 {
-	char szGravity[8];
-	g_CVar_sv_gravity.GetString(szGravity, sizeof(szGravity));
-
 	for (int client = 1; client < MaxClients; client++)
 	{
-		g_flClientGravity[client] = 1.0;
-		g_bLadder[client] = false;
-
-		if (IsClientInGame(client) && !IsFakeClient(client))
-			g_CVar_sv_gravity.ReplicateToClient(client, szGravity);
+		if (IsClientInGame(client) && !IsFakeClient(client) && !IsClientSourceTV(client))
+			g_CVar_sv_gravity.ReplicateToClient(client, g_sSvGravity);
 	}
+}
+
+stock void InitClient(int client)
+{
+	g_flClientGravity[client] = 1.0;
+	g_bLadder[client] = false;
 }
